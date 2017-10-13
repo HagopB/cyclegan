@@ -37,6 +37,7 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
          ├── trainA                  # images belonging to class A
          └── trainB                  # images belonging to class B
     ├── pics                         # intermediate results folders (for training phase)
+    ├── deepenv.yml                  # Environment (keras 2, tensorflow 1.1, etc ...)
     ├── discriminator.py             # discriminator
     ├── generator.py                 # generator (Resblock 6)
     ├── layers.py                    # ReflectPadding2D & InstanceNormalization2D
@@ -48,3 +49,5 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
 
 ```
 ### Demonstration: De-raining images 
+
+
