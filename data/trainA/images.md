@@ -1,1 +1,1 @@
-# Insert here all images belonging to class A, example: Picasso # 
+# Insert here all images belonging to class/style A, example: Picasso paintings 
