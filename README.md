@@ -49,7 +49,7 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
 
 ```
 ### Demonstration: De-raining images 
-The example below present 20 rainy images where cycleGAN has been used to de-rain.
+The example below present 15 rainy images where cycleGAN has been used to de-rain.
 
 ![](https://github.com/HagopB/cyclegan/blob/master/pics/demo_rainremoval.png)
 
