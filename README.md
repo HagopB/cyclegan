@@ -1,7 +1,9 @@
 # CycleGAN #
 
 ### What is this repository for? 
-Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)).
+Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). The code is based on two keras implementations. Sincere thanks to:
+* PiscesDream [https://github.com/PiscesDream/CycleGAN-keras](https://github.com/PiscesDream/CycleGAN-keras) and 
+* shadySource [https://github.com/shadySource/cyclegan_keras](https://github.com/shadySource/cyclegan_keras)
 
 ### How do I get set up ?  
 Install Anaconda 3
