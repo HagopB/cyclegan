@@ -1,9 +1,7 @@
 # CycleGAN #
 
 ### What is this repository for? 
-Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). The code is based on two keras implementations. Sincere thanks to:
-* PiscesDream [https://github.com/PiscesDream/CycleGAN-keras](https://github.com/PiscesDream/CycleGAN-keras)
-* shadySource [https://github.com/shadySource/cyclegan_keras](https://github.com/shadySource/cyclegan_keras)
+Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). 
 
 ### How do I get set up ?  
 Install Anaconda 3
@@ -50,6 +48,11 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
     ├── utils.py                     # utils
 
 ```
+### Acknowledgement
+The code is based on two keras implementations. Sincere thanks to:
+* PiscesDream [https://github.com/PiscesDream/CycleGAN-keras](https://github.com/PiscesDream/CycleGAN-keras)
+* shadySource [https://github.com/shadySource/cyclegan_keras](https://github.com/shadySource/cyclegan_keras)
+
 ### Demonstration: De-raining images 
 The example below present 15 rainy images where cycleGAN has been used to de-rain.
 
