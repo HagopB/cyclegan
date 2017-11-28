@@ -7,21 +7,72 @@ from keras.optimizers import Adam
 from keras.models import Model
 from utils import ImageGenerator
 import keras.backend as k
-from layers import InstanceNormalization2D
+from layers import *
 import numpy as np
 import sys
-from utils import  vis_grid
+from utils import  *
 from scipy.misc import *
-
+from resnet_34 import *
 
 '''
 *****************************************************************************
-*****************************   cycle loss **********************************
+*********************************** Losses **********************************
 *****************************************************************************
 '''
-def cycle_loss(y_true, y_pred):
-    loss = k.sum(k.abs(y_true - y_pred),axis=-1)
+
+def mse_loss(y_true, y_pred):
+    #MSE
+    loss = k.mean(k.square(y_true - y_pred))
     return loss
+
+def cycle_loss(y_true, y_pred):
+    # MAE
+    loss = k.mean(k.abs(y_true - y_pred))
+    return loss
+
+def gan_loss(y_true, y_pred, use_lsgan=True):
+    if use_lsgan == True:
+        #MSE
+        loss = k.mean(k.square(y_pred - y_true)) 
+    else:
+        loss = -k.mean(k.log(y_pred + 1e-12) * y_true + k.log(1 - y_pred + 1e-12) * (1 - y_true))
+    return loss
+
+def cycle_variables(netG1, netG2):
+    real_input = netG1.inputs[0]
+    fake_output = netG1.outputs[0]
+    rec_input = netG2([fake_output])
+    fn_generate = K.function([real_input], [fake_output, rec_input])
+    return real_input, fake_output, rec_input, fn_generate
+
+def feature_loss(netFeat, real_A, fake_B, rec_A, real_B, fake_A, rec_B):
+    loss_AfB = mse_loss(netFeat([real_A]), netFeat([fake_B]))
+    loss_BfA = mse_loss(netFeat([real_B]), netFeat([fake_A]))
+    
+    loss_fArecB = mse_loss(netFeat([fake_A]), netFeat([rec_B]))  
+    loss_fBrecA = mse_loss(netFeat([fake_B]), netFeat([rec_A]))  
+    
+    loss_ArecA = mse_loss(netFeat([real_A]), netFeat([rec_A]))
+    loss_BrecB = mse_loss(netFeat([real_B]), netFeat([rec_B]))
+    
+    return loss_AfB, loss_BfA, loss_fArecB, loss_fBrecA, loss_ArecA, loss_BrecB
+
+def loss_(netD, real, fake, rec):
+    output_real = netD([real])
+    output_fake = netD([fake])
+    
+    # loss D
+    loss_D_real = gan_loss(output_real, k.ones_like(output_real))
+    loss_D_fake = gan_loss(output_fake, k.zeros_like(output_fake))
+    loss_D = loss_D_real + loss_D_fake
+    
+    # loss G
+    loss_G = gan_loss(output_fake, k.ones_like(output_fake))
+    
+    # loss cycle
+    loss_cyc = cycle_loss(rec, real)
+    return loss_D, loss_G, loss_cyc
+
 '''
 *****************************************************************************
 *****************************   cycleGAN   **********************************
@@ -40,189 +91,166 @@ class BaseModel(object):
 
 class CycleGAN(BaseModel):
     name = 'CycleGAN'
-    @staticmethod
-    def init_network(model):
-        for w in model.weights:
-            if w.name.startswith('conv2d') and w.name.endswith('kernel'):
-                value = np.random.normal(loc=0.0, scale=0.02, size=w.get_value().shape)
-                w.set_value(value.astype('float32'))
-            if w.name.startswith('conv2d') and w.name.endswith('bias'):
-                value = np.zeros(w.get_value().shape)
-                w.set_value(value.astype('float32'))
-
     def __init__(self, opt):
-        gen_B = defineG(opt.which_model_netG, input_shape=opt.shapeA, output_shape=opt.shapeB, ngf=opt.ngf, name='gen_B')
-        dis_B = defineD(opt.which_model_netD, input_shape=opt.shapeB, ndf=opt.ndf, use_sigmoid=not opt.use_lsgan, name='dis_B')
+        netDA = defineD(opt.which_model_netD, input_shape=opt.shapeA, ndf=opt.ndf, use_sigmoid=False, name='netDA')
+        netDB = defineD(opt.which_model_netD, input_shape=opt.shapeB, ndf=opt.ndf, use_sigmoid=False, name='netDB')
 
-        gen_A = defineG(opt.which_model_netG, input_shape=opt.shapeB, output_shape=opt.shapeA, ngf=opt.ngf, name='gen_A')
-        dis_A = defineD(opt.which_model_netD, input_shape=opt.shapeA, ndf=opt.ndf, use_sigmoid=not opt.use_lsgan, name='dis_A')
-
-        self.init_network(gen_B)
-        self.init_network(dis_B)
-        self.init_network(gen_A)
-        self.init_network(dis_A)
-
-
-        # build for generators
-        real_A = Input(opt.shapeA)
-        fake_B = gen_B(real_A)
-        dis_fake_B = dis_B(fake_B)
-        rec_A = gen_A(fake_B) # = gen_A(gen_B(real_A))
-
-        real_B = Input(opt.shapeB)
-        fake_A = gen_A(real_B)
-        dis_fake_A = dis_A(fake_A)
-        rec_B = gen_B(fake_A) # = gen_B(gen_A(real_B))
-
-        if opt.idloss > 0:
-            G_trainner = Model([real_A, real_B],
-                     [dis_fake_B,   dis_fake_A,     rec_A,      rec_B,      fake_B,     fake_A])
-
-            G_trainner.compile(Adam(lr=opt.lr, beta_1=opt.beta1,),
-                loss=['MSE', 'MSE', cycle_loss, cycle_loss, cycle_loss, cycle_loss],
-                loss_weights=[1, 1, opt.lmbd, opt.lmbd, opt.idloss, opt.idloss])
-        else:
-            G_trainner = Model([real_A, real_B],
-                     [dis_fake_B, dis_fake_A, rec_A, rec_B,])
-
-            G_trainner.compile(Adam(lr=opt.lr, beta_1=opt.beta1,),
-                loss=['MSE', 'MSE', cycle_loss, cycle_loss,],
-                loss_weights=[1, 1, opt.lmbd, opt.lmbd,])
-        # label:  0             0               real_A      real_B
-
-
-        # build for discriminators
-        real_A = Input(opt.shapeA)
-        fake_A = Input(opt.shapeA)
-        real_B = Input(opt.shapeB)
-        fake_B = Input(opt.shapeB)
-
-        dis_real_A = dis_A(real_A)
-        dis_fake_A = dis_A(fake_A)
-        dis_real_B = dis_B(real_B)
-        dis_fake_B = dis_B(fake_B)
-
-        D_trainner = Model([real_A, fake_A, real_B, fake_B],
-                [dis_real_A, dis_fake_A, dis_real_B, dis_fake_B])
-        D_trainner.compile(Adam(lr=opt.lr, beta_1=opt.beta1,), loss='MSE')
-        # label: 0           0.9         0           0.9
-
+        netGA = defineG(opt.which_model_netG, input_shape=opt.shapeB, output_shape=opt.shapeA, ngf=opt.ngf, name='netGA')
+        netGB = defineG(opt.which_model_netG, input_shape=opt.shapeA, output_shape=opt.shapeB, ngf=opt.ngf, name='netGB')       
+        
+        # generate variables
+        real_A, fake_B, rec_A, cycleA_generate = cycle_variables(netGB, netGA)
+        real_B, fake_A, rec_B, cycleB_generate = cycle_variables(netGA, netGB)
+        
+        # compute loss
+        loss_DA, loss_GA, loss_cycA = loss_(netDA, real_A, fake_A, rec_A)
+        loss_DB, loss_GB, loss_cycB = loss_(netDB, real_B, fake_B, rec_B)
+        loss_cyc = loss_cycA + loss_cycB
+        
+        if opt.perceptionloss == True:
+            netFeat = definenetFeat(input_shape=opt.shapeA, name='netFeat')
+            # features loss
+            loss_AfB, loss_BfA, loss_fArecB, loss_fBrecA, loss_ArecA, loss_BrecB = feature_loss(netFeat,
+                                                                                                real_A, fake_B, rec_A,
+                                                                                                real_B, fake_A, rec_B)
+            
+            loss_feat = opt.lmbd_feat * (loss_AfB + loss_BfA + loss_fArecB + loss_fBrecA + loss_ArecA + loss_BrecB)
+            
+            # Generator Loss: 
+            loss_G = loss_GA + loss_GB + opt.lmbd * loss_cyc + loss_feat
+            
+            # build for Generator
+            weightsG = netGA.trainable_weights + netGB.trainable_weights + netFeat.trainable_weights
+       
+            training_updates = Adam(lr=opt.lr, beta_1=0.5).get_updates(weightsG, [], loss_G)
+        
+            G_trainner = K.function([real_A, real_B],
+                                    [loss_GA, loss_GB, loss_cyc, loss_feat],
+                                    training_updates)
+            
+        else:    
+        
+            # Generator Loss: 
+            loss_G = loss_GA + loss_GB + opt.lmbd * loss_cyc 
+            
+            # build for Generator
+            weightsG = netGA.trainable_weights + netGB.trainable_weights
+        
+            training_updates = Adam(lr=opt.lr, beta_1=0.5).get_updates(weightsG, [], loss_G)
+        
+            G_trainner = K.function([real_A, real_B],
+                                    [loss_GA, loss_GB, loss_cyc],
+                                    training_updates)
+        # Discriminator loss:
+        loss_D = loss_DA + loss_DB
+        
+        # build for Discriminator
+        weightsD = netDA.trainable_weights + netDB.trainable_weights
+        
+        training_updates = Adam(lr=opt.lr, beta_1=0.5).get_updates(weightsD, [],loss_D)
+        
+        D_trainner = K.function([real_A, real_B],
+                                [loss_DA/2, loss_DB/2],
+                                training_updates)
 
         self.G_trainner = G_trainner
         self.D_trainner = D_trainner
-        self.AtoB = gen_B
-        self.BtoA = gen_A
-        self.DisA = dis_A
-        self.DisB = dis_B
+        
+        self.AtoB = netGB
+        self.BtoA = netGA
+        
+        self.DisA = netDA
+        self.DisB = netDB
+        
+        self.cycleA_generate = cycleA_generate
+        self.cycleB_generate = cycleB_generate
+        
         self.opt = opt
 
-    def fit(self, img_A_generator, img_B_generator):
+    def fit(self, img_generator):
         opt = self.opt
+        # managing intermediate results directory
         if not os.path.exists(opt.pic_dir):
             os.mkdir(opt.pic_dir)
+        
+        # defining batch size
         bs = opt.batch_size
 
-        fake_A_pool = []
-        fake_B_pool = []
 
+        train_batch = img_generator(bs)
+        
+        niter = opt.niter
+        display_iters = 50
         epoch = 0
-        total_iter = 0
+        iteration = 0
+        errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = errFeat_sum = 0
+        
         while epoch < opt.niter:
-            print('Start of epoch: {}'.format(epoch))
-            print('Total number of iterations')
-            max_iter = max([img_A_generator.n_images_, img_B_generator.n_images_])
+            epoch, A, B = next(train_batch)        
             
-            iteration = 0
-            while iteration < max_iter:
-                # sample
-                real_A = img_A_generator(bs)
-                real_B = img_B_generator(bs)
-
-                # fake pool
-                fake_A_pool.extend(self.BtoA.predict(real_B))
-                fake_B_pool.extend(self.AtoB.predict(real_A))
-                fake_A_pool = fake_A_pool[-opt.pool_size:]
-                fake_B_pool = fake_B_pool[-opt.pool_size:]
-
-                fake_A = [fake_A_pool[ind] for ind in np.random.choice(len(fake_A_pool), size=(bs,), replace=False)]
-                fake_B = [fake_B_pool[ind] for ind in np.random.choice(len(fake_B_pool), size=(bs,), replace=False)]
-                fake_A = np.array(fake_A)
-                fake_B = np.array(fake_B)
-
-                ones  = np.ones((bs,)+self.G_trainner.output_shape[0][1:])
-                zeros = np.zeros((bs,)+self.G_trainner.output_shape[0][1:])
-
-
-                # train
-                for _ in range(opt.d_iter):
-                    _, D_loss_real_A, D_loss_fake_A, D_loss_real_B, D_loss_fake_B = \
-                        self.D_trainner.train_on_batch([real_A, fake_A, real_B, fake_B],
-                            [zeros, ones * 0.9, zeros, ones * 0.9])
-
-
-                if opt.idloss > 0:
-                    _, G_loss_fake_B, G_loss_fake_A, G_loss_rec_A, G_loss_rec_B, G_loss_id_A, G_loss_id_B = \
-                        self.G_trainner.train_on_batch([real_A, real_B],
-                            [zeros, zeros, real_A, real_B, real_A, real_B])
-                else:
-                    _, G_loss_fake_B, G_loss_fake_A, G_loss_rec_A, G_loss_rec_B = \
-                        self.G_trainner.train_on_batch([real_A, real_B],
-                            [zeros, zeros, real_A, real_B, ])
+            # train discriminator
+            errDA, errDB  = self.D_trainner([A, B])
+            errDA_sum += errDA
+            errDB_sum += errDB
+            
+            #train generator
+            if opt.perceptionloss == True:
+                errGA, errGB, errCyc, errFeat = self.G_trainner([A, B])
+                errGA_sum += errGA
+                errGB_sum += errGB
+                errCyc_sum += errCyc
+                errFeat_sum += errFeat
                 
-                if iteration % 100 == 0:
-                    print('Epoch {} - iteration {}'.format(epoch, iteration))
-                    print('Generator Loss:')
-                    print('fake_B: {} rec_A: {} | fake_A: {} rec_B: {}'.\
-                            format(G_loss_fake_B, G_loss_rec_A, G_loss_fake_A, G_loss_rec_B))
-                    if opt.idloss > 0:
-                        print('id_loss_A: {}, id_loss_B: {}'.format(G_loss_id_A, G_loss_id_B))
+            else:
+                errGA, errGB, errCyc = self.G_trainner([A, B])
+                errGA_sum += errGA
+                errGB_sum += errGB
+                errCyc_sum += errCyc
+              
+            if iteration%50 == 0:
+                if opt.perceptionloss == True:
+                    to_print = '[{}/{}][{}] Loss_D: {} {} Loss_G: {} {} loss_cyc {} loss_feat {}'.format(epoch, niter, iteration,
+                                                                                                     errDA_sum/50, errDB_sum/50,
+                                                                                                     errGA_sum/50, errGB_sum/50,
+                                                                                                     errCyc_sum/50, errFeat/50)
+                else:
+                     to_print = '[{}/{}][{}] Loss_D: {} {} Loss_G: {} {} loss_cyc {}'.format(epoch, niter, iteration,
+                                                                                   errDA_sum/50, errDB_sum/50,
+                                                                                   errGA_sum/50, errGB_sum/50,
+                                                                                   errCyc_sum/50)     
+                print(to_print)
 
-                    print('Discriminator Loss:')
-                    print('real_A: {} fake_A: {} | real_B: {} fake_B: {}'.\
-                            format(D_loss_real_A, D_loss_fake_A, D_loss_real_B, D_loss_fake_B))
-
-
-                    print("Dis_A")
-                    res = self.DisA.predict(real_A)
-                    print("real_A: {}".format(res.mean()))
-                    res = self.DisA.predict(fake_A)
-                    print("fake_A: {}".format(res.mean()))
-
-                if total_iter % opt.save_iter == 0:
-                    imga = real_A
-                    imga2b = self.AtoB.predict(imga)
-                    imga2b2a = self.BtoA.predict(imga2b)
-
-                    imgb = real_B
-                    imgb2a = self.BtoA.predict(imgb)
-                    imgb2a2b = self.AtoB.predict(imgb2a)
-
-                    vis_grid(np.concatenate([imga, imga2b, imga2b2a, imgb, imgb2a, imgb2a2b],
-                                                                                axis=0),
-                            6, bs, os.path.join(opt.pic_dir, '{}.png'.format(total_iter)) )
-
-                    self.AtoB.save(os.path.join(opt.pic_dir, 'a2b.h5'))
-                    self.BtoA.save(os.path.join(opt.pic_dir, 'b2a.h5'))
-                iteration += 1
-                total_iter += 1
-                sys.stdout.flush()
-            epoch += 1
+            if iteration%opt.save_iter == 0:
+                # save intermediate results
+                _, A, B = train_batch.send(4)      
+                
+                assert A.shape==B.shape
+                def G(fn_generate, X):
+                    r = np.array([fn_generate([X[i:i+1]]) for i in range(X.shape[0])])
+                    return r.swapaxes(0,1)[:,:,0]        
+                
+                rA = G(self.cycleA_generate, A)
+                rB = G(self.cycleB_generate, B)
+                arr = np.concatenate([A,B,rA[0],rB[0],rA[1],rB[1]])
+                saveX(arr, os.path.join(opt.pic_dir, 'int_res.png'), 3)
+                
+                errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = errFeat_sum = 0 
+            
+            if iteration%2500 == 0:
+                # save model
+                self.AtoB.save(os.path.join(opt.pic_dir, 'a2b.h5'))
+                self.BtoA.save(os.path.join(opt.pic_dir, 'b2a.h5'))
+                
+                
+            iteration += bs                   
     def predict(self, path_images, model_path):
         opt = self.opt
         if not os.path.exists(opt.pic_dir):
             os.mkdir(opt.pic_dir)
             
-        img_generator = ImageGenerator(path_images,resize=opt.resize,crop=opt.crop)
         print('Predicting with model' + model_path.split('.')[0])
-        
-        print('Preparing demo image')
-        real = img_generator(20)
-        
-        model = keras.models.load_model(model_path,custom_objects={'InstanceNormalization2D': InstanceNormalization2D})
-        preds = model.predict(real)                
-        img = vis_grid(np.concatenate([real[:5], preds[:5],real[5:10],preds[5:10],
-                                      real[10:15],preds[10:15],real[15:],preds[15:]],axis=0),
-                       8, 5,os.path.join(opt.pic_dir, 'demo.png'))       
+        model = keras.models.load_model(model_path, 
+                                        custom_objects={'InstanceNormalization2D': InstanceNormalization2D})
         
         print('Predicting for all images')
         
@@ -253,4 +281,10 @@ class CycleGAN(BaseModel):
             imsave(os.path.join(opt.pic_dir,'{}.png'.format(imgs_id[idx])),e)
             if idx % 100 == 0:
                 print('Done: {0}/{1} images'.format(idx, total))
+        
+        print('Preparing demo image')
+        real = imgs[:20]             
+        img = vis_grid(np.concatenate([real[:5], preds[:5],real[5:10],preds[5:10],
+                                      real[10:15],preds[10:15],real[15:],preds[15:]],axis=0),
+                       8, 5,os.path.join(opt.pic_dir, 'demo.png'))       
         

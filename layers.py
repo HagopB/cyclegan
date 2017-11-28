@@ -1,5 +1,14 @@
 from keras.engine.topology import Layer
 import keras.backend as K
+from keras.layers import InputSpec
+from keras.models import Sequential, Model
+from keras.layers import Conv2D, ZeroPadding2D, BatchNormalization, Input, Dropout
+from keras.layers import Conv2DTranspose, Reshape, Activation, Cropping2D, Flatten
+from keras.layers import Concatenate
+from keras.layers.advanced_activations import LeakyReLU
+from keras.activations import relu
+from keras.initializers import RandomNormal
+from keras import backend as k
 
 '''
 *****************************************************************************
@@ -42,30 +51,77 @@ class ReflectPadding2D(Layer):
 *****************************************************************************
 '''
 class InstanceNormalization2D(Layer):
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 beta_initializer='zeros',
+                 gamma_initializer='ones',
+                 epsilon=1e-3,
+                 **kwargs):
         super(InstanceNormalization2D, self).__init__(**kwargs)
+        if K.image_data_format() is 'channels_first':
+            self.axis = 1
+        else: # image channels x.shape[3]
+            self.axis = 3
+        print()
+        self.epsilon = epsilon
+        self.beta_initializer = beta_initializer
+        self.gamma_initializer = gamma_initializer
 
     def build(self, input_shape):
-        self.scale = self.add_weight(name='scale', shape=(input_shape[1],), initializer="one", trainable=True)
-        self.shift = self.add_weight(name='shift', shape=(input_shape[1],), initializer="zero", trainable=True)
+        self.gamma = self.add_weight(shape=(input_shape[self.axis],),
+                                     initializer=self.gamma_initializer,
+                                     trainable=True,
+                                     name='gamma')
+        self.beta = self.add_weight(shape=(input_shape[self.axis],),
+                                    initializer=self.beta_initializer,
+                                    trainable=True,
+                                    name='beta')
         super(InstanceNormalization2D, self).build(input_shape)
 
-    def call(self, x, mask=None):
-        def image_expand(tensor):
-            return K.expand_dims(K.expand_dims(tensor, -1), -1)
+    def call(self, x):
+        # spatial dimensions of input
+        if K.image_data_format() is 'channels_first':
+            x_w, x_h = (2, 3)
+        else:
+            x_w, x_h = (1, 2)
 
-        def batch_image_expand(tensor):
-            return image_expand(K.expand_dims(tensor, 0))
+        # Very similar to batchnorm, but normalization over individual inputs.
 
-        hw = K.cast(x.shape[1] * x.shape[2], K.floatx())
-        mu = K.sum(x, [-1, -2]) / hw
-        mu_vec = image_expand(mu)
-        sig2 = K.sum(K.square(x - mu_vec), [-1, -2]) / hw
-        y = (x - mu_vec) / (K.sqrt(image_expand(sig2)) + K.epsilon())
+        hw = K.cast(K.shape(x)[x_h]* K.shape(x)[x_w], K.floatx())
 
-        scale = batch_image_expand(self.scale)
-        shift = batch_image_expand(self.shift)
-        return scale*y + shift
+        # Instance means
+        mu = K.sum(x, axis=x_w)
+        mu = K.sum(mu, axis=x_h)
+        mu = mu / hw
+        mu = K.reshape(mu, (K.shape(mu)[0], K.shape(mu)[1], 1, 1))
 
-    def compute_output_shape(self, input_shape):
-        return input_shape
+        # Instance variences
+        sig2 = K.square(x - mu)
+        sig2 = K.sum(sig2, axis=x_w)
+        sig2 = K.sum(sig2, axis=x_h)
+        sig2 = K.reshape(sig2, (K.shape(sig2)[0], K.shape(sig2)[1], 1, 1))
+
+        # Normalize
+        y = (x - mu) / K.sqrt(sig2 + self.epsilon)
+
+        # Scale and Shift
+        if K.image_data_format() is 'channels_first':
+            gamma = K.reshape(self.gamma, (1, K.shape(self.gamma)[0], 1, 1))
+            beta = K.reshape(self.beta, (1, K.shape(self.beta)[0], 1, 1))
+        else:
+            gamma = K.reshape(self.gamma, (1, 1, 1, K.shape(self.gamma)[0]))
+            beta = K.reshape(self.beta, (1, 1, 1, K.shape(self.beta)[0]))
+        return gamma * y + beta
+    
+'''
+*****************************************************************************
+**************************  OTHER util layers   *****************************
+*****************************************************************************
+'''
+conv_init = RandomNormal(0, 0.02) # for convolution kernel
+gamma_init = RandomNormal(1., 0.02) # for batch normalization
+
+def conv2d(f, *a, **k):
+    return Conv2D(f, kernel_initializer = conv_init, *a, **k)
+def batchnorm():
+    return BatchNormalization(momentum=0.9, axis=3, epsilon=1.01e-5, 
+                              gamma_initializer = gamma_init)
