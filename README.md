@@ -49,12 +49,13 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
 
 ```
 ### Acknowledgement
-The code is based on two keras implementations. Sincere thanks to:
 * PiscesDream [https://github.com/PiscesDream/CycleGAN-keras](https://github.com/PiscesDream/CycleGAN-keras)
 * shadySource [https://github.com/shadySource/cyclegan_keras](https://github.com/shadySource/cyclegan_keras)
+* tjwei [https://github.com/tjwei/GANotebooks](https://github.com/tjwei/GANotebooks)
+* Elias Vansteenkiste [https://github.com/EliasVansteenkiste/CycleGANwithPerceptionLoss](https://github.com/EliasVansteenkiste/CycleGANwithPerceptionLoss)
 
 ### Demonstration: De-raining images 
-The example below present 15 rainy images where cycleGAN has been used to de-rain.
+The example below present 12 rainy images where cycleGAN has been used to de-rain.
 
 ![](https://github.com/HagopB/cyclegan/blob/master/pics/demo_rainremoval.png)
 
