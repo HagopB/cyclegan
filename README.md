@@ -3,6 +3,11 @@
 ### What is this repository for? 
 Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). 
 
+### Demonstration: De-raining images 
+The example below present 18 rainy images of shape (128*128*3) where cycleGAN has been used to de-rain.
+
+![](https://github.com/HagopB/cyclegan/blob/master/pics/demo_rainremoval.png)
+
 ### How do I get set up ?  
 Install Anaconda 3
 Import the conda environment named `deepenv` using : 
@@ -39,7 +44,8 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
     ├── pics                         # intermediate results folders (for training phase)
     ├── deepenv.yml                  # Environment (keras 2, tensorflow 1.1, etc ...)
     ├── discriminator.py             # discriminator
-    ├── generator.py                 # generator (Resblock 6)
+    ├── generator.py                 # generator (Resblock 6 & unet_128)
+    ├── resnet_34.py                 # cnn for perception loss (Resnet34)
     ├── layers.py                    # ReflectPadding2D & InstanceNormalization2D
     ├── models.py                    # cycleGAN: fit & predict
     ├── README.md                    # Readme
@@ -54,9 +60,5 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
 * tjwei [https://github.com/tjwei/GANotebooks](https://github.com/tjwei/GANotebooks)
 * Elias Vansteenkiste [https://github.com/EliasVansteenkiste/CycleGANwithPerceptionLoss](https://github.com/EliasVansteenkiste/CycleGANwithPerceptionLoss)
 
-### Demonstration: De-raining images 
-The example below present 12 rainy images where cycleGAN has been used to de-rain.
-
-![](https://github.com/HagopB/cyclegan/blob/master/pics/demo_rainremoval.png)
 
 
