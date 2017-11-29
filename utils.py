@@ -135,7 +135,7 @@ class Option(object):
 
         # net definition
         which_model_netD = 'basic',         # selects model to use for netD
-        which_model_netG = 'unet_128',      # selects model to use for netG
+        which_model_netG = 'resnet_6blocks',      # selects model to use for netG
         use_lsgan = 1,                      # if 1, use least square GAN, if 0, use vanilla GAN
         perceptionloss = False,    # wether to use CycleGan with perception loss
         ngf = 64,                           # #  of gen filters in first conv layer
@@ -149,7 +149,7 @@ class Option(object):
 
         # training parameters
         batch_size = 1,                     # images in batch
-        niter = 200,                        #  of iter at starting learning rate
+        niter = 100,                        #  of iter at starting learning rate
         pool_size = 50,                     # the size of image buffer that stores previously generated images
         save_iter = 50,
         d_iter = 10,

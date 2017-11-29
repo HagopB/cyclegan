@@ -1,5 +1,5 @@
 from keras.layers import UpSampling2D
-from keras.layers import Add
+from keras.layers import add
 from layers import *
 
 
@@ -24,70 +24,58 @@ def defineG(which_model_netG, input_shape, output_shape, ngf, **kwargs):
 padding = ZeroPadding2D # or use ReflectPadding2D
 
 def normalize(**kwargs):
-    return batchnorm()#axis=get_filter_dim()
-    #return InstanceNormalization2D()
+    #return batchnorm()#axis=get_filter_dim()
+    return InstanceNormalization2D()
 
-def scaleup(input, ngf, kss, strides, padding):
-    x = UpSampling2D(strides)(input)
-    x = Conv2D(ngf, kss, padding=padding, kernel_initializer = conv_init)(x)
-    return x
 
-def res_block(input, filters, kernel_size=(3,3), strides=(1,1)):
-    x = padding()(input)
-    x = Conv2D(filters=filters,
-                kernel_size=kernel_size,
-                strides=strides,kernel_initializer = conv_init)(x)
-    x = normalize()(x, training=1)
+def resnet_block(input, dim, ks =(3,3), strides=(1,1)):
+    x = padding((1,1))(input)
+    x = Conv2D(dim, ks,strides=strides, kernel_initializer=conv_init)(x)
+    x = normalize()(x)
     x = Activation('relu')(x)
 
-    x = padding()(x)
-    x = Conv2D(filters=filters,
-                kernel_size=kernel_size,
-                strides=strides, kernel_initializer = conv_init)(x)
-    x = normalize()(x, training=1)
+    x = padding((1,1))(x)
+    x = Conv2D(dim, ks,strides=strides, kernel_initializer=conv_init)(x)
+    x = normalize()(x)
+    res = add([input, x])
+    return res
 
-    merged = Add()([input, x])
-    return merged
 
 def resnet_6blocks(input_shape, output_nc, ngf, **kwargs):
-    ks = 3
-    f = 7
-    p = int((f-1)/2)
-
     input = Input(input_shape)
-    x = padding((p,p))(input)
-    x = Conv2D(ngf, (f,f), kernel_initializer = conv_init)(x)
-    x = normalize()(x, training=1)
+    x = padding((3,3))(input)
+    x = Conv2D(ngf, (7,7), kernel_initializer=conv_init)(x)
+    x = normalize()(x)
     x = Activation('relu')(x)
 
-    x = Conv2D(ngf*2, (ks,ks), strides=(2,2), padding='same', kernel_initializer = conv_init)(x)
-    x = normalize()(x, training=1)
-    x = Activation('relu')(x)
+    n_downsampling = 2
+    for i in range(n_downsampling):
+        mult = 2**i
+        x = Conv2D(ngf * mult * 2, (3,3),
+                   padding='same', strides=(2,2),
+                   kernel_initializer=conv_init)(x)
+        x = normalize()(x)
+        x = Activation('relu')(x)
 
-    x = Conv2D(ngf*4, (ks,ks), strides=(2,2), padding='same', kernel_initializer = conv_init)(x)
-    x = normalize()(x, training=1)
-    x = Activation('relu')(x)
 
-    x = res_block(x, ngf*4)
-    x = res_block(x, ngf*4)
-    x = res_block(x, ngf*4)
-    x = res_block(x, ngf*4)
-    x = res_block(x, ngf*4)
-    x = res_block(x, ngf*4)
-    
-    x = scaleup(x, ngf*2, (ks, ks), strides=(2,2), padding='same')
-    x = normalize()(x, training=1)
-    x = Activation('relu')(x)
-    
-    x = scaleup(x, ngf, (ks, ks), strides=(2,2), padding='same')
-    x = normalize()(x, training=1)
-    x = Activation('relu')(x)
+    mult = 2**n_downsampling
+    for i in range(6):
+        x = resnet_block(x, ngf * mult)
 
-    x = padding((p,p))(x)
-    x = Conv2D(output_nc, (f,f), kernel_initializer = conv_init)(x)
+    for i in range(n_downsampling):
+        mult = 2**(n_downsampling - i)
+        f = int(ngf * mult / 2)
+        x = Conv2DTranspose(f, (3,3), strides=(2,2),
+                            padding='same', kernel_initializer=conv_init)(x)
+        x = normalize()(x)
+        x = Activation('relu')(x)
+
+    x = padding((3,3))(x)
+    x = Conv2D(output_nc, (7,7), kernel_initializer = conv_init)(x)
     x = Activation('tanh')(x)
 
-    model = Model(input, x, name=kwargs.get('name',None))
+
+    model = Model(inputs=input, outputs=[x])
     print('Model resnet 6blocks:')
     model.summary()
     return model
