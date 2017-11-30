@@ -4,7 +4,7 @@
 Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). 
 
 ### Demonstration: De-raining images 
-The example below present 18 rainy images of shape (128*128*3) where cycleGAN has been used to de-rain.
+The example below present 18 rainy images of shape (128x128x3) where cycleGAN has been used to de-rain.
 
 ![](https://github.com/HagopB/cyclegan/blob/master/pics/demo_rainremoval.png)
 
