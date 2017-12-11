@@ -21,7 +21,7 @@ source activate deepenv
 ```
 Now all the dependencies must be installed without problems (Keras 2, tensorflow 1 ...)
 
-### How do I train CycleGAN with new images ?
+### How do I train CycleGAN ?
 you may have information on how to run ```train.py``` by:
 ```
 python predict.py --help
@@ -30,6 +30,8 @@ you can train your own model by running (N.B.: example):
 ```
 python train.py --path_trainA ./data/trainA --path_trainB ./data/trainB --pic_dir ./intermediate_res --lmbd 10
 ```
+
+### How do I train CycleGAN with perception loss ?
 you can train CycleGan with Perception loss by running:
 ```
 python train.py --path_trainA ./data/trainA --path_trainB ./data/trainB --pic_dir ./intermediate_res --lmbd 10 --lmbd_feat 1
@@ -49,7 +51,8 @@ python test.py --path_images ./data/trainA --pic_dir ./results --model_path ./..
     ├── deepenv.yml                  # Environment (keras 2, tensorflow 1.1, etc ...)
     ├── discriminator.py             # discriminator
     ├── generator.py                 # generator (Resblock 6 & unet_128)
-    ├── resnet_34.py                 # cnn for perception loss (Resnet34)
+    ├── resnet_builder.py            # utils for perception loss (Resnet50)
+    ├── resnet50.py                  # cnn for perception loss (Resnet50)
     ├── layers.py                    # ReflectPadding2D & InstanceNormalization2D
     ├── models.py                    # cycleGAN: fit & predict
     ├── README.md                    # Readme
