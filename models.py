@@ -12,7 +12,7 @@ import numpy as np
 import sys
 from utils import  *
 from scipy.misc import *
-from resnet_34 import *
+from resnet_builder import *
 
 '''
 *****************************************************************************
@@ -122,11 +122,12 @@ class CycleGAN(BaseModel):
             # build for Generator
             weightsG = netGA.trainable_weights + netGB.trainable_weights + netFeat.trainable_weights
        
-            training_updates = Adam(lr=opt.lr, beta_1=0.5).get_updates(weightsG, [], loss_G)
+            adam_g = Adam(lr=opt.lr, beta_1=0.5)
+            training_updates_g = adam_g.get_updates(weightsG, [], loss_G)
         
             G_trainner = K.function([real_A, real_B],
                                     [loss_GA, loss_GB, loss_cyc, loss_feat],
-                                    training_updates)
+                                    training_updates_g)
             
         else:    
         
@@ -135,23 +136,25 @@ class CycleGAN(BaseModel):
             
             # build for Generator
             weightsG = netGA.trainable_weights + netGB.trainable_weights
-        
-            training_updates = Adam(lr=opt.lr, beta_1=0.5).get_updates(weightsG, [], loss_G)
+            
+            adam_g = Adam(lr=opt.lr, beta_1=0.5)
+            training_updates_g = adam_g.get_updates(weightsG, [], loss_G)
         
             G_trainner = K.function([real_A, real_B],
                                     [loss_GA, loss_GB, loss_cyc],
-                                    training_updates)
+                                    training_updates_g)
         # Discriminator loss:
-        loss_D = loss_DA + loss_DB
+        loss_D = 0.5*(loss_DA + loss_DB)
         
         # build for Discriminator
         weightsD = netDA.trainable_weights + netDB.trainable_weights
         
-        training_updates = Adam(lr=opt.lr, beta_1=0.5).get_updates(weightsD, [],loss_D)
+        adam_d = Adam(lr=opt.lr, beta_1=0.5)
+        training_updates_d = adam_d.get_updates(weightsD, [],loss_D)
         
         D_trainner = K.function([real_A, real_B],
                                 [loss_DA/2, loss_DB/2],
-                                training_updates)
+                                training_updates_d)
 
         self.G_trainner = G_trainner
         self.D_trainner = D_trainner
@@ -166,7 +169,9 @@ class CycleGAN(BaseModel):
         self.cycleB_generate = cycleB_generate
         
         self.opt = opt
-
+        self.adam_g = adam_g
+        self.adam_d = adam_d
+        
     def fit(self, img_generator):
         opt = self.opt
         # managing intermediate results directory
@@ -242,7 +247,8 @@ class CycleGAN(BaseModel):
                 self.BtoA.save(os.path.join(opt.pic_dir, 'b2a.h5'))
                 
                 
-            iteration += bs                   
+            iteration += bs
+            
     def predict(self, path_images, model_path):
         opt = self.opt
         if not os.path.exists(opt.pic_dir):

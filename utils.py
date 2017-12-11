@@ -42,7 +42,7 @@ def showG(A, B, path):
     saveX(arr, 3, path)
     
 def saveX(X, path, rows=1):
-    imageSize=128
+    imageSize=256
     assert X.shape[0]%rows == 0
     int_X = ( (X+1)/2*255).clip(0,255).astype('uint8')
     int_X = int_X.reshape(-1,imageSize,imageSize, 3)
@@ -128,10 +128,10 @@ class Option(object):
         # from CycleGAN/options.lua
         # data
         DATA_ROOT = '',                     # path to images (should have subfolders 'train', 'val', etc)
-        shapeA = (128,128,3),               #(256,256,3),
-        shapeB = (128,128,3),               #(256,256,3),
-        resize = (143,143),                 #(286,286),
-        crop   = (128,128),                 #(256,256),
+        shapeA = (256,256,3),               #(256,256,3),
+        shapeB = (256,256,3),               #(256,256,3),
+        resize = (286,286),                 #(286,286),
+        crop   = (256,256),                 #(256,256),
 
         # net definition
         which_model_netD = 'basic',         # selects model to use for netD
@@ -161,7 +161,7 @@ class Option(object):
         ntrain = np.inf,                    #  of examples per epoch. math.huge for full dataset
         flip = 1,                           # if flip the images for data argumentation
         display_id = 10,                    # display window id.
-        display_winsize = 128,              # 256 if images are of shape (256, 256, 3)
+        display_winsize = 256,              # 256 if images are of shape (256, 256, 3)
         display_freq = 25,                  # display the current results every display_freq iterations
         gpu = 1,                            # gpu = 0 is CPU mode. gpu=X is GPU mode on GPU X
         cuda=1,
