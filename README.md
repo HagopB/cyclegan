@@ -4,7 +4,7 @@
 Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). 
 
 ### Demonstration: De-raining images 
-The example below present 18 rainy images of shape (128x128x3) where cycleGAN has been used to de-rain.
+The example below presents 18 rainy images of shape (128x128x3) where cycleGAN with perception loss has been used to de-rain.
 
 ![](https://github.com/HagopB/cyclegan/blob/master/pics/demo_perc_loss.png)
 
@@ -28,7 +28,11 @@ python predict.py --help
 ```
 you can train your own model by running (N.B.: example):
 ```
-python train.py --path_trainA ./data/trainA --path_trainB ./data/trainB --pic_dir ./intermediate_res
+python train.py --path_trainA ./data/trainA --path_trainB ./data/trainB --pic_dir ./intermediate_res --lmbd 10
+```
+you can train CycleGan with Perception loss by running:
+```
+python train.py --path_trainA ./data/trainA --path_trainB ./data/trainB --pic_dir ./intermediate_res --lmbd 10 --lmbd_feat 1
 ```
 ### How do I deploy CycleGAN on new images after training?
 you can deploy the model on a given collection, in order to transform A to B or B to A (Possible only after training).
