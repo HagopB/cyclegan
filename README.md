@@ -1,4 +1,4 @@
-# CycleGAN #
+# CycleGAN with perception loss #
 
 ### What is this repository for? 
 Implementation of CycleGan model in Keras ([original implementation link](https://github.com/junyanz/CycleGAN)). 
